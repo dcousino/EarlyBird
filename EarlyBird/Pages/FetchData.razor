@@ -1,0 +1,88 @@
+﻿@page "/fetchdata"
+
+@using EarlyBird.Data
+@using EarlyBird.Services
+@using BlazorDateRangePicker
+@inject Four25Service Four25Service
+
+<h1>Early Bird</h1>
+<hr />
+
+<form>
+    <div class="form-group">
+        <select class="form-control" @onchange=OnUserSelect>
+            <option value="0">Select User</option>
+            @foreach (var user in Four25Service.GetUsers())
+            {
+                <option value="@user">@user</option>
+            }
+        </select>
+    </div>
+    <div class="form-group">
+        <DateRangePicker class="form-control form-control-sm" placeholder="Select dates..." disabled="@string.IsNullOrEmpty(userName)" OnRangeSelect="OnRangeSelect" />
+    </div>
+</form>
+@if (schedule != null)
+{
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Name</th>
+                <th>Date</th>
+                <th>Start Time</th>
+                <th>End Time</th>
+                <th>Reserve</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var entry in schedule)
+            {
+                <tr>
+                    <td>@entry.EventName</td>
+                    <td>@entry.EventDate</td>
+                    <td>@entry.EventStartTime</td>
+                    <td>@entry.EventEndTime</td>
+                    <td>
+                        @if (!string.IsNullOrEmpty(entry.InternalEnrollmentStatus))
+                        {<p>@entry.InternalEnrollmentStatus</p> }
+                    else
+                    { <button class="btn btn-primary" @onclick="@(e => AddReservation(entry, userName))">Enroll</button>}
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    private Four25ClassSchedule[] schedule;
+    private string userName;
+
+    [CascadingParameter] public IModalService Modal { get; set; }
+
+    public async Task OnRangeSelect(DateRange range)
+    {
+        schedule = (await Four25Service.GetScheduleAsync(userName, range.Start.LocalDateTime, range.End.LocalDateTime)).ToArray();
+    }
+
+    public async Task AddReservation(Four25ClassSchedule entry, string userName)
+    {
+        try
+        {
+            await Four25Service.AddReservation(entry, userName);
+            entry.InternalEnrollmentStatus = Globals.Pending;
+            Modal.Show<EnrollModal>($"Successfully added resevation for {entry.EventDate} {entry.EventStartTime}");
+
+        }
+        catch (Exception ex)
+        {
+            Modal.Show<EnrollModal>($"There was an error add reservation. {ex.Message}");
+        }
+
+    }
+    public async Task OnUserSelect(ChangeEventArgs a)
+    {
+        userName = a.Value.ToString();
+        await Four25Service.Login(userName);
+    }
+}
